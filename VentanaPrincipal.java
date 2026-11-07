@@ -1,160 +1,275 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 public class VentanaPrincipal extends JFrame {
     private JTable tablaTurnos;
     private DefaultTableModel modeloTabla;
-    private JButton btnNuevoTurno, btnCambiarEstado, btnCerrarSesion;
+    private JTextField txtCliente;
+    private JTextField txtTelefono;
+    private JComboBox<String> comboBarbero;
+    private JTextField txtFecha;
+    private JTextField txtHorario;
+    private JTextField txtFiltroFecha;
+    private JButton btnFiltrar;
+    private JButton btnVerTodos;
+    private JButton btnGuardar;
+    private JButton btnCerrarSesion;
+    private JButton btnCambiarEstado;
+    private TurnoDAO turnoDAO;
     private String usuarioLogueado;
+    private JPanel panelFormulario;
 
     public VentanaPrincipal(String usuario) {
         this.usuarioLogueado = usuario;
-
-        setTitle("Barbería - Panel de Gestión (" + usuarioLogueado + ")");
-        setSize(750, 450);
+        turnoDAO = new TurnoDAO();
+        setTitle("Sistema de Gestión - Barbería | Usuario: " + usuarioLogueado);
+        setSize(850, 620);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-        setLayout(null);
+        setLayout(new BorderLayout());
 
-        JLabel lblTitulo = new JLabel("Agenda de Turnos - Sesión: " + usuarioLogueado);
-        lblTitulo.setBounds(20, 20, 400, 25);
-        add(lblTitulo);
+        // Panel superior para el Administrador
+        panelFormulario = new JPanel(new GridLayout(9, 2, 5, 5));
+        panelFormulario.setBorder(BorderFactory.createTitledBorder("Panel de Administración de Turnos"));
 
-        String[] columnas = {"ID", "Cliente", "Teléfono", "Barbero", "Horario", "Estado"};
-        modeloTabla = new DefaultTableModel(columnas, 0);
-        
-        // Datos de ejemplo iniciales
-        modeloTabla.addRow(new Object[]{"1", "Carlos Pérez", "2634567890", "Barbero 1", "10:00", "PENDIENTE"});
-        modeloTabla.addRow(new Object[]{"2", "Juan Gómez", "2631234567", "Barbero 2", "10:30", "PRESENTE"});
-        modeloTabla.addRow(new Object[]{"3", "Pedro López", "2639876543", "Barbero 1", "11:00", "PENDIENTE"});
+        panelFormulario.add(new JLabel("Cliente:"));
+        txtCliente = new JTextField();
+        panelFormulario.add(txtCliente);
 
-        // Filtrar según el rol (admin ve todo, barbero1 ve Barbero 1, barbero2 ve Barbero 2)
-        DefaultTableModel modeloFiltrado = new DefaultTableModel(columnas, 0);
-        for (int i = 0; i < modeloTabla.getRowCount(); i++) {
-            Object[] fila = {
-                modeloTabla.getValueAt(i, 0),
-                modeloTabla.getValueAt(i, 1),
-                modeloTabla.getValueAt(i, 2),
-                modeloTabla.getValueAt(i, 3),
-                modeloTabla.getValueAt(i, 4),
-                modeloTabla.getValueAt(i, 5)
-            };
-            
-            if (usuarioLogueado.equals("admin")) {
-                modeloFiltrado.addRow(fila);
-            } else if (usuarioLogueado.equals("barbero1") && fila[3].toString().equalsIgnoreCase("Barbero 1")) {
-                modeloFiltrado.addRow(fila);
-            } else if (usuarioLogueado.equals("barbero2") && fila[3].toString().equalsIgnoreCase("Barbero 2")) {
-                modeloFiltrado.addRow(fila);
-            }
-        }
+        panelFormulario.add(new JLabel("Teléfono:"));
+        txtTelefono = new JTextField();
+        panelFormulario.add(txtTelefono);
 
-        tablaTurnos = new JTable(modeloFiltrado);
-        JScrollPane scrollPane = new JScrollPane(tablaTurnos);
-        scrollPane.setBounds(20, 60, 690, 220);
-        add(scrollPane);
+        panelFormulario.add(new JLabel("Barbero:"));
+        comboBarbero = new JComboBox<>(new String[]{"Carlos", "Lucas"});
+        panelFormulario.add(comboBarbero);
 
-        btnNuevoTurno = new JButton("Nuevo Turno");
-        btnNuevoTurno.setBounds(20, 310, 150, 30);
-        add(btnNuevoTurno);
+        panelFormulario.add(new JLabel("Fecha del Turno (ej. 15/11/2026):"));
+        txtFecha = new JTextField();
+        panelFormulario.add(txtFecha);
 
-        // Si no es admin, se deshabilita el botón de crear nuevos turnos
-        if (!usuarioLogueado.equals("admin")) {
-            btnNuevoTurno.setEnabled(false);
-        }
+        panelFormulario.add(new JLabel("Horario (ej. 10:00):"));
+        txtHorario = new JTextField();
+        panelFormulario.add(txtHorario);
 
-        btnCambiarEstado = new JButton("Cambiar Estado");
-        btnCambiarEstado.setBounds(180, 310, 150, 30);
-        add(btnCambiarEstado);
+        btnGuardar = new JButton("Guardar Turno");
+        panelFormulario.add(btnGuardar);
 
+        panelFormulario.add(new JLabel("Filtrar Tabla por Fecha:"));
+        txtFiltroFecha = new JTextField(LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        panelFormulario.add(txtFiltroFecha);
+
+        btnFiltrar = new JButton("Filtrar Fecha");
+        panelFormulario.add(btnFiltrar);
+
+        btnVerTodos = new JButton("Ver Todos los Turnos");
+        panelFormulario.add(btnVerTodos);
+
+        // Panel de sesión auxiliar
+        JPanel panelSuperiorExtra = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         btnCerrarSesion = new JButton("Cerrar Sesión");
-        btnCerrarSesion.setBounds(560, 310, 150, 30);
-        add(btnCerrarSesion);
+        panelSuperiorExtra.add(btnCerrarSesion);
+        
+        JPanel norteCompleto = new JPanel(new BorderLayout());
+        norteCompleto.add(panelFormulario, BorderLayout.CENTER);
+        norteCompleto.add(panelSuperiorExtra, BorderLayout.SOUTH);
+        add(norteCompleto, BorderLayout.NORTH);
 
-        // Acción del botón Nuevo Turno (Solo para Admin)
-        btnNuevoTurno.addActionListener(new ActionListener() {
+        // Tabla para visualizar los turnos
+        modeloTabla = new DefaultTableModel(new String[]{"ID", "Cliente", "Teléfono", "Barbero", "Fecha", "Horario", "Estado"}, 0);
+        tablaTurnos = new JTable(modeloTabla);
+        add(new JScrollPane(tablaTurnos), BorderLayout.CENTER);
+
+        // Panel inferior para cambiar estado
+        JPanel panelInferior = new JPanel();
+        btnCambiarEstado = new JButton("Cambiar Estado del Turno");
+        panelInferior.add(btnCambiarEstado);
+        add(panelInferior, BorderLayout.SOUTH);
+
+        configurarPermisosRol();
+        cargarTurnosIniciales();
+
+        // --- NAVEGACIÓN CON TECLADO ---
+        txtCliente.addActionListener(e -> txtTelefono.requestFocus());
+        txtTelefono.addActionListener(e -> comboBarbero.requestFocus());
+        
+        comboBarbero.addKeyListener(new KeyAdapter() {
             @Override
-            public void actionPerformed(ActionEvent e) {
-                JTextField txtCliente = new JTextField();
-                JTextField txtTelefono = new JTextField();
-                String[] barberosDisponibles = {"Barbero 1", "Barbero 2"};
-                JComboBox<String> cmbBarbero = new JComboBox<>(barberosDisponibles);
-                JTextField txtHorario = new JTextField();
-
-                Object[] camposFormulario = {
-                    "Nombre del Cliente:", txtCliente,
-                    "Teléfono:", txtTelefono,
-                    "Barbero Asignado:", cmbBarbero,
-                    "Horario (ej. 11:00):", txtHorario
-                };
-
-                int opcion = JOptionPane.showConfirmDialog(
-                    null, camposFormulario, "Registrar Nuevo Turno", JOptionPane.OK_CANCEL_OPTION
-                );
-
-                if (opcion == JOptionPane.OK_OPTION) {
-                    String cliente = txtCliente.getText().trim();
-                    String telefono = txtTelefono.getText().trim();
-                    String barbero = (String) cmbBarbero.getSelectedItem();
-                    String horario = txtHorario.getText().trim();
-
-                    if (!cliente.isEmpty() && !telefono.isEmpty() && !horario.isEmpty()) {
-                        boolean solapado = false;
-                        for (int i = 0; i < modeloFiltrado.getRowCount(); i++) {
-                            if (modeloFiltrado.getValueAt(i, 3).toString().equalsIgnoreCase(barbero) && 
-                                modeloFiltrado.getValueAt(i, 4).toString().equalsIgnoreCase(horario) && 
-                                !modeloFiltrado.getValueAt(i, 5).toString().equalsIgnoreCase("CANCELADO")) {
-                                solapado = true;
-                                break;
-                            }
-                        }
-
-                        if (solapado) {
-                            JOptionPane.showMessageDialog(null, "Conflicto: El barbero ya tiene un turno a esa hora.", "Error", JOptionPane.ERROR_MESSAGE);
-                        } else {
-                            int id = modeloFiltrado.getRowCount() + 1;
-                            modeloFiltrado.addRow(new Object[]{String.valueOf(id), cliente, telefono, barbero, horario, "PENDIENTE"});
-                            JOptionPane.showMessageDialog(null, "¡Turno registrado con éxito!");
-                        }
-                    } else {
-                        JOptionPane.showMessageDialog(null, "Todos los campos son obligatorios", "Error", JOptionPane.ERROR_MESSAGE);
-                    }
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    txtFecha.requestFocus();
                 }
             }
         });
+        
+        txtFecha.addActionListener(e -> txtHorario.requestFocus());
+        txtHorario.addActionListener(e -> btnGuardar.doClick());
 
-        // Acción del botón Cambiar Estado (Incluye PENDIENTE, PRESENTE, ATENDIDO, AUSENTE, CANCELADO)
-        btnCambiarEstado.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int filaSeleccionada = tablaTurnos.getSelectedRow();
+        // Acciones de botones
+        btnGuardar.addActionListener(e -> guardarTurnoBD());
+        btnFiltrar.addActionListener(e -> cargarTurnosPorFiltroFecha());
+        btnVerTodos.addActionListener(e -> cargarTodosLosTurnosAdmin());
+        btnCerrarSesion.addActionListener(e -> {
+            new VentanaLogin().setVisible(true);
+            dispose();
+        });
+        btnCambiarEstado.addActionListener(e -> cambiarEstadoTurno());
+    }
+
+    private void configurarPermisosRol() {
+        if (!usuarioLogueado.equalsIgnoreCase("admin")) {
+            panelFormulario.setVisible(false); // Los barberos no ven el panel de administración
+        }
+    }
+
+    private void cargarTurnosIniciales() {
+        modeloTabla.setRowCount(0);
+        List<String[]> listaTurnos;
+
+        if (usuarioLogueado.equalsIgnoreCase("admin")) {
+            String fechaHoy = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            listaTurnos = turnoDAO.obtenerTurnosPorFecha(fechaHoy);
+        } else {
+            // Los barberos visualizan sus turnos asignados ordenados cronológicamente
+            listaTurnos = turnoDAO.obtenerTurnosPorBarbero(usuarioLogueado);
+        }
+
+        for (String[] turno : listaTurnos) {
+            modeloTabla.addRow(turno);
+        }
+    }
+
+    private void cargarTurnosPorFiltroFecha() {
+        String fechaBuscada = txtFiltroFecha.getText().trim();
+        if (fechaBuscada.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Ingrese una fecha para filtrar.", "Advertencia", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        modeloTabla.setRowCount(0);
+        List<String[]> lista = turnoDAO.obtenerTurnosPorFecha(fechaBuscada);
+        for (String[] turno : lista) {
+            modeloTabla.addRow(turno);
+        }
+    }
+
+    private void cargarTodosLosTurnosAdmin() {
+        modeloTabla.setRowCount(0);
+        List<String[]> lista = turnoDAO.obtenerTodosLosTurnos();
+        for (String[] turno : lista) {
+            modeloTabla.addRow(turno);
+        }
+    }
+
+    private void guardarTurnoBD() {
+        String cliente = txtCliente.getText().trim();
+        String telefono = txtTelefono.getText().trim();
+        String barbero = (String) comboBarbero.getSelectedItem();
+        String fecha = txtFecha.getText().trim();
+        String horario = txtHorario.getText().trim();
+        String estado = "Pendiente";
+
+        if (cliente.isEmpty() || telefono.isEmpty() || fecha.isEmpty() || horario.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Por favor completa todos los campos.", "Advertencia", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // --- VALIDACIÓN DE SOLAPAMIENTO ---
+        List<String[]> turnosDelBarbero = turnoDAO.obtenerTurnosPorBarbero(barbero);
+        for (String[] t : turnosDelBarbero) {
+            String fechaExistente = t[4]; 
+            String horarioExistente = t[5]; 
+            String estadoExistente = t[6];   
+
+            if (fechaExistente != null && !fechaExistente.isEmpty() &&
+                fechaExistente.equalsIgnoreCase(fecha) && 
+                horarioExistente.equalsIgnoreCase(horario) && 
+                !estadoExistente.equalsIgnoreCase("Cancelado")) {
                 
-                if (filaSeleccionada != -1) {
-                    String[] estados = {"PENDIENTE", "PRESENTE", "ATENDIDO", "AUSENTE", "CANCELADO"};
-                    String nuevoEstado = (String) JOptionPane.showInputDialog(
-                        null, "Seleccione el nuevo estado:", "Cambiar Estado",
-                        JOptionPane.QUESTION_MESSAGE, null, estados, estados[0]
-                    );
+                JOptionPane.showMessageDialog(this, 
+                    "El barbero " + barbero + " ya tiene un turno asignado el " + fecha + " a las " + horario + ".", 
+                    "Horario Ocupado", 
+                    JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+        }
 
-                    if (nuevoEstado != null) {
-                        modeloFiltrado.setValueAt(nuevoEstado, filaSeleccionada, 5);
-                        JOptionPane.showMessageDialog(null, "¡Estado actualizado con éxito!");
+        boolean exito = turnoDAO.guardarTurno(cliente, telefono, barbero, fecha, horario, estado);
+        if (exito) {
+            JOptionPane.showMessageDialog(this, "¡Turno guardado con éxito!");
+            
+            // Actualiza la tabla mostrando la fecha del turno recién ingresado
+            txtFiltroFecha.setText(fecha);
+            cargarTurnosPorFiltroFecha();
+
+            txtCliente.setText("");
+            txtTelefono.setText("");
+            txtFecha.setText("");
+            txtHorario.setText("");
+            txtCliente.requestFocus();
+        } else {
+            JOptionPane.showMessageDialog(this, "Error al guardar el turno en la base de datos.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void cambiarEstadoTurno() {
+        int filaSeleccionada = tablaTurnos.getSelectedRow();
+        if (filaSeleccionada == -1) {
+            JOptionPane.showMessageDialog(this, "Por favor selecciona un turno de la tabla.", "Advertencia", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            int idTurno = Integer.parseInt(modeloTabla.getValueAt(filaSeleccionada, 0).toString());
+            String[] estados;
+
+            if (usuarioLogueado.equalsIgnoreCase("admin")) {
+                estados = new String[]{"Pendiente", "Atendido", "Ausente", "Cancelado"};
+            } else {
+                estados = new String[]{"Pendiente", "Atendido"};
+            }
+            
+            String nuevoEstado = (String) JOptionPane.showInputDialog(
+                this,
+                "Seleccione el nuevo estado del turno:",
+                "Cambiar Estado",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                estados,
+                estados[0]
+            );
+
+            if (nuevoEstado != null) {
+                boolean actualizado = turnoDAO.actualizarEstado(idTurno, nuevoEstado);
+                if (actualizado) {
+                    JOptionPane.showMessageDialog(this, "¡Estado actualizado a: " + nuevoEstado + "!");
+                    if (usuarioLogueado.equalsIgnoreCase("admin")) {
+                        cargarTurnosPorFiltroFecha();
+                    } else {
+                        cargarTurnosIniciales();
                     }
                 } else {
-                    JOptionPane.showMessageDialog(null, "Por favor, seleccione un turno de la tabla", "Advertencia", JOptionPane.WARNING_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "No se pudo actualizar el estado.", "Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
-        });
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error al procesar el turno: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
 
-        // Acción del botón Cerrar Sesión (Vuelve al Login)
-        btnCerrarSesion.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                new VentanaLogin().setVisible(true);
-                dispose();
-            }
+    public VentanaPrincipal() {
+        this("admin");
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            new VentanaPrincipal("admin").setVisible(true);
         });
     }
 }
