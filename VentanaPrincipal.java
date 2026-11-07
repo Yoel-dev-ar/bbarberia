@@ -8,6 +8,7 @@ import java.net.URLEncoder;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class VentanaPrincipal extends JFrame {
     private JTable tablaTurnos;
@@ -24,8 +25,9 @@ public class VentanaPrincipal extends JFrame {
     private JButton btnGuardar;
     private JButton btnCerrarSesion;
     private JButton btnCambiarEstado;
-    private JButton btnGanancias; // Botón para la ventana emergente de ganancias
-    private JButton btnWhatsApp;  // Botón para enviar recordatorios por WhatsApp (Sprint 4)
+    private JButton btnGanancias; 
+    private JButton btnWhatsApp;  
+    private JButton btnConsultaRapida; 
     private TurnoDAO turnoDAO;
     private String usuarioLogueado;
     private JPanel panelFormulario;
@@ -34,16 +36,15 @@ public class VentanaPrincipal extends JFrame {
         this.usuarioLogueado = usuario;
         turnoDAO = new TurnoDAO();
         setTitle("Sistema de Gestión - Barbería | Usuario: " + usuarioLogueado);
-        setSize(1000, 750);
+        setSize(1000, 780);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        // Panel superior para el Administrador (12 filas para acomodar los nuevos botones)
         panelFormulario = new JPanel(new GridLayout(12, 2, 5, 5));
-        panelFormulario.setBorder(BorderFactory.createTitledBorder("Panel de Administración de Turnos "));
+        panelFormulario.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        panelFormulario.add(new JLabel("Cliente:"));
+        panelFormulario.add(new JLabel("Cliente (Nombre y Apellido):"));
         txtCliente = new JTextField();
         panelFormulario.add(txtCliente);
 
@@ -57,6 +58,7 @@ public class VentanaPrincipal extends JFrame {
 
         panelFormulario.add(new JLabel("Servicio:"));
         comboServicio = new JComboBox<>(new String[]{
+            "Sin definir / A confirmar",
             "Corte Clásico ($15.000)", 
             "Perfilado de Barba ($8.000)", 
             "Corte + Barba ($20.000)", 
@@ -64,16 +66,22 @@ public class VentanaPrincipal extends JFrame {
         });
         panelFormulario.add(comboServicio);
 
-        panelFormulario.add(new JLabel("Fecha del Turno (ej. 15/11/2026):"));
+        panelFormulario.add(new JLabel("Fecha de Interés (ej. 15/11/2026):"));
         txtFecha = new JTextField();
         panelFormulario.add(txtFecha);
 
-        panelFormulario.add(new JLabel("Horario (ej. 10:00):"));
+        panelFormulario.add(new JLabel("Horario (Opcional si agenda):"));
         txtHorario = new JTextField();
         panelFormulario.add(txtHorario);
 
         btnGuardar = new JButton("Guardar Turno");
         panelFormulario.add(btnGuardar);
+
+        btnConsultaRapida = new JButton("💬 Enviar Horarios Libres (Sin Guardar)");
+        panelFormulario.add(btnConsultaRapida);
+
+        btnWhatsApp = new JButton("💬 Opciones WhatsApp (Turno Seleccionado)");
+        panelFormulario.add(btnWhatsApp);
 
         panelFormulario.add(new JLabel("Filtrar Tabla por Fecha:"));
         txtFiltroFecha = new JTextField(LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
@@ -85,14 +93,11 @@ public class VentanaPrincipal extends JFrame {
         btnVerTodos = new JButton("Ver Todos los Turnos");
         panelFormulario.add(btnVerTodos);
 
+        panelFormulario.add(new JLabel("")); 
+
         btnGanancias = new JButton("Calcular Ganancias del Día");
         panelFormulario.add(btnGanancias);
 
-        // Botón de WhatsApp integrado en el panel de administración
-        btnWhatsApp = new JButton("💬 Enviar Recordatorio WhatsApp");
-        panelFormulario.add(btnWhatsApp);
-
-        // Panel superior auxiliar para cerrar sesión
         JPanel panelSuperiorExtra = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         btnCerrarSesion = new JButton("Cerrar Sesión");
         panelSuperiorExtra.add(btnCerrarSesion);
@@ -102,11 +107,16 @@ public class VentanaPrincipal extends JFrame {
         norteCompleto.add(panelSuperiorExtra, BorderLayout.SOUTH);
         add(norteCompleto, BorderLayout.NORTH);
 
-        // Tabla con 9 columnas en el Centro
-        modeloTabla = new DefaultTableModel(new String[]{"ID", "Cliente", "Teléfono", "Barbero", "Fecha", "Horario", "Estado", "Servicio", "Costo"}, 0);
+        // Tabla con celdas NO editables directamente (se cambia estado solo por botón)
+        modeloTabla = new DefaultTableModel(new String[]{"Nº", "Cliente", "Teléfono", "Barbero", "Fecha", "Horario", "Estado", "Servicio", "Costo"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false; // Bloquea la edición manual haciendo clic en la celda
+            }
+        };
+        
         tablaTurnos = new JTable(modeloTabla);
         
-        // --- RENDERER PARA COLOREAR ESTADOS EN LA TABLA ---
         tablaTurnos.setDefaultRenderer(Object.class, new javax.swing.table.DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -123,16 +133,17 @@ public class VentanaPrincipal extends JFrame {
 
                 switch (estado.toLowerCase()) {
                     case "atendido":
-                        c.setBackground(new Color(200, 230, 201)); // Verde suave
+                        c.setBackground(new Color(200, 230, 201)); 
                         c.setForeground(Color.BLACK);
                         break;
                     case "pendiente":
-                        c.setBackground(new Color(255, 243, 224)); // Amarillo suave
+                    case "sin horario":
+                        c.setBackground(new Color(255, 243, 224)); 
                         c.setForeground(Color.BLACK);
                         break;
                     case "cancelado":
                     case "ausente":
-                        c.setBackground(new Color(255, 205, 210)); // Rojo suave
+                        c.setBackground(new Color(255, 205, 210)); 
                         c.setForeground(Color.BLACK);
                         break;
                     default:
@@ -146,7 +157,6 @@ public class VentanaPrincipal extends JFrame {
 
         add(new JScrollPane(tablaTurnos), BorderLayout.CENTER);
 
-        // Panel inferior exclusivo para cambiar estado
         JPanel panelInferior = new JPanel();
         btnCambiarEstado = new JButton("Cambiar Estado del Turno");
         panelInferior.add(btnCambiarEstado);
@@ -155,7 +165,6 @@ public class VentanaPrincipal extends JFrame {
         configurarPermisosRol();
         cargarTurnosIniciales();
 
-        // --- NAVEGACIÓN CON TECLADO (ENTER) ---
         txtCliente.addActionListener(e -> txtTelefono.requestFocus());
         txtTelefono.addActionListener(e -> comboBarbero.requestFocus());
         
@@ -180,12 +189,12 @@ public class VentanaPrincipal extends JFrame {
         txtFecha.addActionListener(e -> txtHorario.requestFocus());
         txtHorario.addActionListener(e -> btnGuardar.doClick());
 
-        // Acciones de los botones
         btnGuardar.addActionListener(e -> guardarTurnoBD());
+        btnConsultaRapida.addActionListener(e -> enviarWhatsAppSinGuardar());
         btnFiltrar.addActionListener(e -> cargarTurnosPorFiltroFecha());
         btnVerTodos.addActionListener(e -> cargarTodosLosTurnosAdmin());
         btnGanancias.addActionListener(e -> mostrarReporteGananciasDetalladoVentana());
-        btnWhatsApp.addActionListener(e -> enviarRecordatorioWhatsApp()); // Acción del botón WhatsApp
+        btnWhatsApp.addActionListener(e -> menuOpcionesWhatsApp());
         btnCerrarSesion.addActionListener(e -> {
             new VentanaLogin().setVisible(true);
             dispose();
@@ -199,8 +208,26 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
-    private void cargarTurnosIniciales() {
+    // --- MÉTODO AUXILIAR PARA CARGAR LA TABLA REINICIANDO LA NUMERACIÓN (1, 2, 3...) POR CADA DÍA ---
+    private void cargarTablaOrdenadaPorFecha(List<String[]> listaTurnos) {
         modeloTabla.setRowCount(0);
+        String fechaAnterior = "";
+        int contadorOrden = 1;
+
+        for (String[] turno : listaTurnos) {
+            String fechaActual = turno[4]; // Columna Fecha
+            if (!fechaActual.equals(fechaAnterior)) {
+                contadorOrden = 1; // Reinicia el contador a 1 cuando cambia de día
+                fechaAnterior = fechaActual;
+            }
+
+            String[] filaConOrden = turno.clone();
+            filaConOrden[0] = String.valueOf(contadorOrden++); // Reemplaza el ID por el número correlativo del día
+            modeloTabla.addRow(filaConOrden);
+        }
+    }
+
+    private void cargarTurnosIniciales() {
         List<String[]> listaTurnos;
 
         if (usuarioLogueado.equalsIgnoreCase("admin")) {
@@ -208,12 +235,12 @@ public class VentanaPrincipal extends JFrame {
             listaTurnos = turnoDAO.obtenerTurnosPorFecha(fechaHoy);
             txtFiltroFecha.setText(fechaHoy);
         } else {
-            listaTurnos = turnoDAO.obtenerTurnosPorBarbero(usuarioLogueado);
+            listaTurnos = turnoDAO.obtenerTurnosPorBarbero(usuarioLogueado).stream()
+                .filter(t -> !t[6].equalsIgnoreCase("Cancelado") && !t[6].equalsIgnoreCase("Ausente"))
+                .collect(Collectors.toList());
         }
 
-        for (String[] turno : listaTurnos) {
-            modeloTabla.addRow(turno);
-        }
+        cargarTablaOrdenadaPorFecha(listaTurnos);
     }
 
     private void cargarTurnosPorFiltroFecha() {
@@ -223,19 +250,31 @@ public class VentanaPrincipal extends JFrame {
             return;
         }
 
-        modeloTabla.setRowCount(0);
         List<String[]> lista = turnoDAO.obtenerTurnosPorFecha(fechaBuscada);
-        for (String[] turno : lista) {
-            modeloTabla.addRow(turno);
+        
+        if (!usuarioLogueado.equalsIgnoreCase("admin")) {
+            lista = lista.stream()
+                .filter(t -> t[3].equalsIgnoreCase(usuarioLogueado) && 
+                             !t[6].equalsIgnoreCase("Cancelado") && 
+                             !t[6].equalsIgnoreCase("Ausente"))
+                .collect(Collectors.toList());
         }
+
+        cargarTablaOrdenadaPorFecha(lista);
     }
 
     private void cargarTodosLosTurnosAdmin() {
-        modeloTabla.setRowCount(0);
         List<String[]> lista = turnoDAO.obtenerTodosLosTurnos();
-        for (String[] turno : lista) {
-            modeloTabla.addRow(turno);
+        
+        if (!usuarioLogueado.equalsIgnoreCase("admin")) {
+            lista = lista.stream()
+                .filter(t -> t[3].equalsIgnoreCase(usuarioLogueado) && 
+                             !t[6].equalsIgnoreCase("Cancelado") && 
+                             !t[6].equalsIgnoreCase("Ausente"))
+                .collect(Collectors.toList());
         }
+
+        cargarTablaOrdenadaPorFecha(lista);
     }
 
     private void guardarTurnoBD() {
@@ -248,7 +287,7 @@ public class VentanaPrincipal extends JFrame {
         String estado = "Pendiente";
 
         if (cliente.isEmpty() || telefono.isEmpty() || fecha.isEmpty() || horario.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Por favor completa todos los campos.", "Advertencia", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Por favor completa todos los campos para guardar el turno en la base de datos.", "Advertencia", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -261,25 +300,6 @@ public class VentanaPrincipal extends JFrame {
             costo = 20000.0;
         } else if (servicioSeleccionado.contains("25.000")) {
             costo = 25000.0;
-        }
-
-        List<String[]> turnosDelBarbero = turnoDAO.obtenerTurnosPorBarbero(barbero);
-        for (String[] t : turnosDelBarbero) {
-            String fechaExistente = t[4]; 
-            String horarioExistente = t[5]; 
-            String estadoExistente = t[6];   
-
-            if (fechaExistente != null && !fechaExistente.isEmpty() &&
-                fechaExistente.equalsIgnoreCase(fecha) && 
-                horarioExistente.equalsIgnoreCase(horario) && 
-                !estadoExistente.equalsIgnoreCase("Cancelado")) {
-                
-                JOptionPane.showMessageDialog(this, 
-                    "El barbero " + barbero + " ya tiene un turno asignado el " + fecha + " a las " + horario + ".", 
-                    "Horario Ocupado", 
-                    JOptionPane.WARNING_MESSAGE);
-                return;
-            }
         }
 
         boolean exito = turnoDAO.guardarTurno(cliente, telefono, barbero, fecha, horario, estado, servicioSeleccionado, costo);
@@ -298,6 +318,69 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    private void enviarWhatsAppSinGuardar() {
+        String cliente = txtCliente.getText().trim();
+        String telefono = txtTelefono.getText().trim();
+        String barbero = (String) comboBarbero.getSelectedItem();
+        String fecha = txtFecha.getText().trim();
+
+        if (cliente.isEmpty() || telefono.isEmpty() || fecha.isEmpty()) {
+            JOptionPane.showMessageDialog(this, 
+                "Por favor completa al menos el nombre del cliente, el teléfono y la fecha de interés.", 
+                "Aviso", 
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        telefono = telefono.replaceAll("[^0-9]", "");
+
+        if (telefono.isEmpty()) {
+            JOptionPane.showMessageDialog(this, 
+                "El número de teléfono ingresado no es válido.", 
+                "Teléfono inválido", 
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        List<String[]> turnosDelDia = turnoDAO.obtenerTurnosPorFecha(fecha);
+        java.util.List<String> horariosLibres = new java.util.ArrayList<>(java.util.Arrays.asList(
+            "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"
+        ));
+
+        for (String[] t : turnosDelDia) {
+            String barberoTurno = t[3];
+            String horaTurno = t[5];
+            String estTurno = t[6];
+
+            if (barberoTurno.equalsIgnoreCase(barbero) && !estTurno.equalsIgnoreCase("Cancelado")) {
+                horariosLibres.remove(horaTurno);
+            }
+        }
+
+        String textoDisponibles = horariosLibres.isEmpty() 
+            ? "No hay horarios libres disponibles para esta fecha." 
+            : String.join(", ", horariosLibres);
+
+        String mensaje = "Hola *_" + cliente + "_*, te escribimos de la barbería. Para el día *_" + fecha + "_* tenemos los siguientes horarios disponibles:\n\n"
+                + "🕒 *" + textoDisponibles + "*\n\n"
+                + "¿Cuál de estos horarios te queda cómodo para agendar?";
+
+        try {
+            String mensajeCodificado = URLEncoder.encode(mensaje, "UTF-8");
+            String url = "https://wa.me/" + telefono + "?text=" + mensajeCodificado;
+
+            if (Desktop.isDesktopSupported()) {
+                Desktop desktop = Desktop.getDesktop();
+                desktop.browse(new URI(url));
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, 
+                "Error al intentar abrir WhatsApp: " + e.getMessage(), 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     private void cambiarEstadoTurno() {
         int filaSeleccionada = tablaTurnos.getSelectedRow();
         if (filaSeleccionada == -1) {
@@ -307,13 +390,19 @@ public class VentanaPrincipal extends JFrame {
 
         try {
             int idTurno = Integer.parseInt(modeloTabla.getValueAt(filaSeleccionada, 0).toString());
+            
             String[] estados = usuarioLogueado.equalsIgnoreCase("admin") 
                 ? new String[]{"Pendiente", "Atendido", "Ausente", "Cancelado"} 
                 : new String[]{"Pendiente", "Atendido"};
             
             String nuevoEstado = (String) JOptionPane.showInputDialog(
-                this, "Seleccione el nuevo estado del turno:", "Cambiar Estado",
-                JOptionPane.QUESTION_MESSAGE, null, estados, estados[0]
+                this, 
+                "Seleccione el nuevo estado:", 
+                "Cambiar Estado",
+                JOptionPane.QUESTION_MESSAGE, 
+                null, 
+                estados, 
+                estados[0]
             );
 
             if (nuevoEstado != null) {
@@ -334,26 +423,51 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
-    // --- MENSAJE SIMPLE Y DIRECTO PARA WHATSAPP (SPRINT 4) ---
-    private void enviarRecordatorioWhatsApp() {
+    private void menuOpcionesWhatsApp() {
         int filaSeleccionada = tablaTurnos.getSelectedRow();
         
         if (filaSeleccionada == -1) {
             JOptionPane.showMessageDialog(this, 
-                "Por favor, selecciona un turno de la tabla para enviar el recordatorio.", 
+                "Por favor, selecciona un turno de la tabla para enviar el mensaje.", 
                 "Aviso", 
                 JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        // Extracción de datos según las columnas de la tabla:
-        // 0: ID, 1: Cliente, 2: Teléfono, 3: Barbero, 4: Fecha, 5: Horario, 6: Estado, 7: Servicio, 8: Costo
+        String[] opciones = {
+            "1. Recordatorio y Solicitud de Confirmación",
+            "2. Aviso de Horario Ocupado + Horarios Disponibles",
+            "3. Confirmación de Turno Registrado"
+        };
+
+        String eleccion = (String) JOptionPane.showInputDialog(
+            this,
+            "Selecciona el tipo de mensaje a enviar por WhatsApp:",
+            "Mensajería WhatsApp",
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            opciones,
+            opciones[0]
+        );
+
+        if (eleccion != null) {
+            if (eleccion.startsWith("1")) {
+                enviarWhatsAppMensaje(1, filaSeleccionada);
+            } else if (eleccion.startsWith("2")) {
+                enviarWhatsAppMensaje(2, filaSeleccionada);
+            } else if (eleccion.startsWith("3")) {
+                enviarWhatsAppMensaje(3, filaSeleccionada);
+            }
+        }
+    }
+
+    private void enviarWhatsAppMensaje(int tipoMensaje, int filaSeleccionada) {
         String cliente = modeloTabla.getValueAt(filaSeleccionada, 1).toString();
         String telefono = modeloTabla.getValueAt(filaSeleccionada, 2).toString();
+        String barbero = modeloTabla.getValueAt(filaSeleccionada, 3).toString();
         String fecha = modeloTabla.getValueAt(filaSeleccionada, 4).toString();
         String horario = modeloTabla.getValueAt(filaSeleccionada, 5).toString();
 
-        // Limpiar el teléfono para dejar únicamente dígitos numéricos
         telefono = telefono.replaceAll("[^0-9]", "");
 
         if (telefono.isEmpty()) {
@@ -364,9 +478,45 @@ public class VentanaPrincipal extends JFrame {
             return;
         }
 
-        // Mensaje básico, simple y directo para confirmar o cancelar
-        String mensaje = "Hola *_" + cliente + "_*, te escribimos de la barbería para recordarte que tenés un turno agendado para el día *_" + fecha + "_* a las *_" + horario + "_* hs.\n\n"
-                + "¿Nos confirmás si vas a asistir o si necesitás cancelarlo?";
+        String mensaje = "";
+
+        switch (tipoMensaje) {
+            case 1:
+                mensaje = "Hola *_" + cliente + "_*, te escribimos de la barbería para recordarte que tenés un turno agendado para el día *_" + fecha + "_* a las *_" + horario + "_* hs.\n\n"
+                        + "¿Nos confirmás si vas a asistir o si necesitás cancelarlo?";
+                break;
+
+            case 2:
+                List<String[]> turnosDelDia = turnoDAO.obtenerTurnosPorFecha(fecha);
+                java.util.List<String> horariosLibres = new java.util.ArrayList<>(java.util.Arrays.asList(
+                    "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"
+                ));
+
+                for (String[] t : turnosDelDia) {
+                    String barberoTurno = t[3];
+                    String horaTurno = t[5];
+                    String estTurno = t[6];
+
+                    if (barberoTurno.equalsIgnoreCase(barbero) && !estTurno.equalsIgnoreCase("Cancelado")) {
+                        horariosLibres.remove(horaTurno);
+                    }
+                }
+
+                String textoDisponibles = horariosLibres.isEmpty() 
+                    ? "No hay horarios libres disponibles para esta fecha." 
+                    : String.join(", ", horariosLibres);
+
+                mensaje = "Hola *_" + cliente + "_*, lamentablemente ese horario no se encuentra disponible.\n\n"
+                        + "Disponemos de los siguientes horarios para el *_" + fecha + "_*:\n"
+                        + "🕒 *" + textoDisponibles + "*\n\n"
+                        + "¿Te sirve alguno de estos turnos?";
+                break;
+
+            case 3:
+                mensaje = "¡Hola *_" + cliente + "_*! Tu turno ha sido registrado con éxito para el día *_" + fecha + "_* a las *_" + horario + "_* hs.\n\n"
+                        + "¡Te esperamos en la barbería!";
+                break;
+        }
 
         try {
             String mensajeCodificado = URLEncoder.encode(mensaje, "UTF-8");
