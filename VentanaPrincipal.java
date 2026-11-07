@@ -3,6 +3,8 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.net.URI;
+import java.net.URLEncoder;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -23,6 +25,7 @@ public class VentanaPrincipal extends JFrame {
     private JButton btnCerrarSesion;
     private JButton btnCambiarEstado;
     private JButton btnGanancias; // Botón para la ventana emergente de ganancias
+    private JButton btnWhatsApp;  // Botón para enviar recordatorios por WhatsApp (Sprint 4)
     private TurnoDAO turnoDAO;
     private String usuarioLogueado;
     private JPanel panelFormulario;
@@ -31,14 +34,14 @@ public class VentanaPrincipal extends JFrame {
         this.usuarioLogueado = usuario;
         turnoDAO = new TurnoDAO();
         setTitle("Sistema de Gestión - Barbería | Usuario: " + usuarioLogueado);
-        setSize(1000, 720);
+        setSize(1000, 750);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        // Panel superior para el Administrador (11 filas para acomodar el botón de ganancias)
-        panelFormulario = new JPanel(new GridLayout(11, 2, 5, 5));
-        panelFormulario.setBorder(BorderFactory.createTitledBorder("Panel de Administración de Turnos - Sprint 4"));
+        // Panel superior para el Administrador (12 filas para acomodar los nuevos botones)
+        panelFormulario = new JPanel(new GridLayout(12, 2, 5, 5));
+        panelFormulario.setBorder(BorderFactory.createTitledBorder("Panel de Administración de Turnos "));
 
         panelFormulario.add(new JLabel("Cliente:"));
         txtCliente = new JTextField();
@@ -84,6 +87,10 @@ public class VentanaPrincipal extends JFrame {
 
         btnGanancias = new JButton("Calcular Ganancias del Día");
         panelFormulario.add(btnGanancias);
+
+        // Botón de WhatsApp integrado en el panel de administración
+        btnWhatsApp = new JButton("💬 Enviar Recordatorio WhatsApp");
+        panelFormulario.add(btnWhatsApp);
 
         // Panel superior auxiliar para cerrar sesión
         JPanel panelSuperiorExtra = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -178,6 +185,7 @@ public class VentanaPrincipal extends JFrame {
         btnFiltrar.addActionListener(e -> cargarTurnosPorFiltroFecha());
         btnVerTodos.addActionListener(e -> cargarTodosLosTurnosAdmin());
         btnGanancias.addActionListener(e -> mostrarReporteGananciasDetalladoVentana());
+        btnWhatsApp.addActionListener(e -> enviarRecordatorioWhatsApp()); // Acción del botón WhatsApp
         btnCerrarSesion.addActionListener(e -> {
             new VentanaLogin().setVisible(true);
             dispose();
@@ -323,6 +331,56 @@ public class VentanaPrincipal extends JFrame {
             }
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Error al procesar el turno: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // --- MENSAJE SIMPLE Y DIRECTO PARA WHATSAPP (SPRINT 4) ---
+    private void enviarRecordatorioWhatsApp() {
+        int filaSeleccionada = tablaTurnos.getSelectedRow();
+        
+        if (filaSeleccionada == -1) {
+            JOptionPane.showMessageDialog(this, 
+                "Por favor, selecciona un turno de la tabla para enviar el recordatorio.", 
+                "Aviso", 
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Extracción de datos según las columnas de la tabla:
+        // 0: ID, 1: Cliente, 2: Teléfono, 3: Barbero, 4: Fecha, 5: Horario, 6: Estado, 7: Servicio, 8: Costo
+        String cliente = modeloTabla.getValueAt(filaSeleccionada, 1).toString();
+        String telefono = modeloTabla.getValueAt(filaSeleccionada, 2).toString();
+        String fecha = modeloTabla.getValueAt(filaSeleccionada, 4).toString();
+        String horario = modeloTabla.getValueAt(filaSeleccionada, 5).toString();
+
+        // Limpiar el teléfono para dejar únicamente dígitos numéricos
+        telefono = telefono.replaceAll("[^0-9]", "");
+
+        if (telefono.isEmpty()) {
+            JOptionPane.showMessageDialog(this, 
+                "El cliente seleccionado no cuenta con un número de teléfono válido.", 
+                "Teléfono inválido", 
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Mensaje básico, simple y directo para confirmar o cancelar
+        String mensaje = "Hola *_" + cliente + "_*, te escribimos de la barbería para recordarte que tenés un turno agendado para el día *_" + fecha + "_* a las *_" + horario + "_* hs.\n\n"
+                + "¿Nos confirmás si vas a asistir o si necesitás cancelarlo?";
+
+        try {
+            String mensajeCodificado = URLEncoder.encode(mensaje, "UTF-8");
+            String url = "https://wa.me/" + telefono + "?text=" + mensajeCodificado;
+
+            if (Desktop.isDesktopSupported()) {
+                Desktop desktop = Desktop.getDesktop();
+                desktop.browse(new URI(url));
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, 
+                "Error al intentar abrir WhatsApp: " + e.getMessage(), 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 
